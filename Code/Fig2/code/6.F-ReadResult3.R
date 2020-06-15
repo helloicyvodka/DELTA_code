@@ -1,0 +1,122 @@
+# outfile.folder <- "./test/"
+
+F.ReadResult.3 <- function(outfile.folder){
+  
+  outfile.list <- list.files(outfile.folder)
+  
+  
+  
+  r.list <-
+    
+    base::lapply(outfile.list,function(outfile){
+      
+      if(length(list.files(paste0(outfile.folder,outfile)))==0)return(NA)
+      
+      file <- paste0(outfile.folder,"/",outfile,"/",outfile,".almg")
+      
+      file.AllLin.df <- paste0(outfile.folder,"/",outfile,"/",outfile,".ReLin.All")
+      
+      file.cell.tree.all <- paste0(outfile.folder,"/",outfile,"/",outfile,".cell.tree.all")
+      
+      file.LeafLin.df <-  paste0(outfile.folder,"/",outfile,"/",outfile,".ReLin.Leaf")
+      
+      
+      
+      AllLin.df <- read.table(file.AllLin.df,header = T,colClasses = "character",stringsAsFactors = F)
+      
+      LeafLin.df <- read.table(file.LeafLin.df,header = T,colClasses = "character",stringsAsFactors = F)
+      
+      
+      
+      cell.tree.all.df <- read.table(file.cell.tree.all , header = T, colClasses = "character",stringsAsFactors = F)
+      
+      
+      r <- ggvita::readal.almg(file)
+      
+      
+      r.df <- data.frame(Info= outfile,stringsAsFactors = F)
+      
+      r.df$Score <- r$Score
+      
+      #r.df$RootS <- r$RootS
+      
+      #r.df$RootT <- r$RootT
+      
+      #r.df$TipSize <- c(r$RootS,r$MatchS) %>% Find.tips() %>% length()
+      
+      r.df$pvalue <- r$PValue$pvalue
+      
+      Info.df <- r.df$Info %>% lapply(function(x){ 
+        t <-strsplit(x,split = "[a-zA-Z]") %>% unlist()
+        t <- t[c(-1,-2)]
+        t(as.matrix(t))
+      }) %>% Reduce(rbind,.) %>% data.frame(stringsAsFactors = F) 
+      
+      colnames(Info.df ) <- c("ID","a","N","K","tmax","Dmax","bias","RdropRate")
+      
+      r.df <- cbind(r.df,Info.df)
+      
+      #r.df <- data.table(as.matrix(r.df))
+      
+      #r.df <- data.frame(r.df)
+      
+      # r.df$Gene.OF.RootS <- sapply(1:nrow(r.df),function(i){
+      #   
+      #   rr <- r.df[i,]
+      #   rr.RootS <- rr["RootS"] %>% as.character()
+      #   
+      #   #rr.RootT <- rr["RootT"] %>% as.character()
+      #   
+      #   rr.RootS.Ori <- AllLin.df[AllLin.df$NewAllLin==rr.RootS,"AllLin"] %>% as.character()
+      #   #rr.RootT.Ori <- AllLin.df[AllLin.df$NewAllLin==rr.RootT,"AllLin"] %>% as.character()
+      #   rr.RootS.Ori <- ifelse(rr.RootS.Ori=="Root","",rr.RootS.Ori)
+      #   
+      #   Gene.OF.RootS <- cell.tree.all.df[cell.tree.all.df$Lineage==rr.RootS.Ori,"Gene.OF"] %>% as.character()
+      #   #Gene.OF.RootT <- cell.tree.all.df[cell.tree.all.df$Lineage==rr.RootT.Ori,"Gene.OF"] %>% as.character()
+      #   
+      #   Gene.OF.RootS 
+      #   
+      # })
+      
+      # r.df$Gene.OF.RootT <- sapply(1:nrow(r.df),function(i){
+      #   
+      #   
+      #   rr <- r.df[i,]
+      #   #rr.RootS <- rr["RootS"] %>% as.character()
+      #   rr.RootT <- rr["RootT"] %>% as.character()
+      #   
+      #   #rr.RootS.Ori <- AllLin.df[AllLin.df$NewAllLin==rr.RootS,"AllLin"] %>% as.character()
+      #   rr.RootT.Ori <- AllLin.df[AllLin.df$NewAllLin==rr.RootT,"AllLin"] %>% as.character()
+      #   
+      #   rr.RootT.Ori<- ifelse(rr.RootT.Ori=="Root","",rr.RootT.Ori)
+      #   
+      #   #Gene.OF.RootS <- cell.tree.all.df[cell.tree.all.df$Lineage==rr.RootS.Ori,"Gene.OF"] %>% as.character()
+      #   Gene.OF.RootT <- cell.tree.all.df[cell.tree.all.df$Lineage==rr.RootT.Ori,"Gene.OF"] %>% as.character()
+      #   
+      #   Gene.OF.RootT 
+      #   
+      # })
+      
+      
+      #r.df$Hamming.Distance <- apply(r.df,1,function(x) sum(unlist(strsplit(x["Gene.OF.RootS"],"")) != unlist(strsplit(x["Gene.OF.RootT"],""))))
+      
+      
+      
+      
+      r.df
+      
+    }) 
+  
+  r.list %>% Reduce(rbind,.) 
+  
+  
+}
+
+
+
+
+
+
+
+
+

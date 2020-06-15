@@ -1,0 +1,428 @@
+---
+title: "Redraw Fig.4"
+output: html_notebook
+date: '2018-11-29'
+---
+```{r eval=FALSE, include=FALSE}
+ggvita::DELTA(treeS = "/mnt/data/home/ATPs/W/Celegans/Lineages/fun.alm",
+              treeT = "/mnt/data/home/ATPs/W/Celegans/Lineages/fun.alm",
+              cost = "/mnt/data/home/yuanmeng/2017-2018/tree/ReDrawResult/cost-same-m10u2.tsv",
+              max_target = 5000,
+              test = 100,
+              prune = 10,
+              method = "l",
+              all = F,
+              outfile = "/mnt/data/home/yuanmeng/2017-2018/tree/Fig.4B/20181201-max5000-test100-same-m10u2pr10.txt",
+              DELTA.address = "/mnt/data/home/phil/acting/treeComparison/code/DELTA/bin/Release/DELTA"
+              )
+```
+
+```{r }
+cost.Fig.4 <- read.table("/mnt/data/home/ATPs/W/Celegans/Lineages/costMatch10otherMinus100.tsv",header=F,stringsAsFactors = F)
+# cost.Fig.4 %>% 
+#   ggplot(aes(x=V1,y=V2,fill=factor(V3)))+
+#   geom_tile(color="black")+
+#   theme(panel.grid = element_blank(),axis.ticks = element_blank())+
+#   xlab(NULL)+
+#   ylab(NULL)
+  
+cell.df <- read.csv( "~/2017-2018/tree/ATPs/W/Celegans/Lineages/20171207EPIC_cell_geneExpression.csv",sep="\t",header=T,stringsAsFactors = F)
+colnames(cell.df) <- colnames(cell.df) %>% sub("X","",.)
+rownames(cell.df) <- cell.df$cell %>% ggvita::LN_to_Bin()
+cell.df <- cell.df[,-c(1)]
+cell.df.log2 <- cell.df+1
+cell.df.log2 <- log2(cell.df.log2)
+
+folder <- "./../"
+
+alignments.alml <- ggvita::readal.alml("~/2017-2018/tree/Fig.4B/result/20181128-max10000-test1000-same-m10u2pr1.txt")
+alignments <- lapply(1:2000,function(i){
+  
+  
+  alist <- alignments.alml[[as.character(i)]]
+  
+  c("id"=i,
+    "Score"=alist$Score,
+    "RootS"=alist$RootS,
+    "RootT"=alist$RootT,
+    "pvalue"=alist$PValue$pvalue,
+    "MatchLength"=length(alist$MatchS)+1,
+    "log10pvalue"=(alist$PValue$pvalue %>% as.numeric()%>% log10()),
+    "MatchS"=list(alist$MatchS),
+    "MatchT"=list(alist$MatchT),
+    "PruneS"=list(alist$PruneS),
+    "PruneT"=list(alist$PruneT)
+    )
+  
+}) %>% 
+  Reduce(rbind,.) %>% 
+  as.data.frame()
+
+alignments <- 
+  tbl_df(alignments) %>% 
+  filter(id != 1) 
+
+cell.df.expLog2 <- cell.df.log2
+
+epic.homepage <- read.csv("~/2017-2018/Predict_expr/data/epic/epic_homepage.csv",stringsAsFactors = F)  
+
+epic.homepage.links <- 
+  epic.homepage$series.shown %>% 
+  paste0("CD",.,".csv")
+
+epic.batch <- list.files("~/2017-2018/Predict_expr/data/epic/epic_data/")
+
+epic.homepage.links2 <- setdiff(epic.homepage.links,setdiff(epic.homepage.links,epic.batch))
+
+epic.home.full <- 
+  c(
+    c("C25D7","ceh.16","ceh.36","dpy.31","end3","F38C2","lin.26","F47H4","nhr.68","T23H4","ref","C01B7") %>% 
+      lapply(.,function(x){
+        epic.batch[grepl(as.character(x),epic.batch)][1]
+      }) %>% 
+      unlist(),
+    epic.homepage.links2)
+
+epic.home.full.forCXL <-
+epic.home.full %>% 
+  sub("-","\\.",.) %>% 
+  sub("CD","",.) %>% 
+  sub("\\.csv","",.)
+
+cell.df.expLog2.130 <- 
+cell.df.expLog2[,sapply(epic.home.full.forCXL,function(x)which(colnames(cell.df)==x)) %>% as.integer() %>% sort()]
+
+
+CalculateCorrelation <- function(x){
+  # x is one row of alignments.1more
+
+  Ts <- unlist(cell.df.expLog2.130[x$MatchS[[1]],])
+  Tt <- unlist(cell.df.expLog2.130[x$MatchT[[1]],])
+  if (sum(!(is.na(Ts) | is.na(Tt))) == 0) {
+    return(NA)
+  } else {
+    return(cor(Ts,Tt, use = "complete.obs", method = "pearson"))
+  }
+}
+
+
+fname.symmetry <- "~/2017-2018/tree/transform ppp to 111/symmetry-sisters.csv"
+symmetryCells <- read.table(fname.symmetry, sep = ',', header = TRUE, as.is = TRUE, colClasses = "character")
+colnames(symmetryCells) <- c("s1","s2","s1b","s2b")
+symmetryCells <- tbl_df(symmetryCells)
+symmetryCells.verse <- symmetryCells
+colnames(symmetryCells.verse) <- colnames(symmetryCells)[c(2,1,4,3)]
+symmetryCells.pairs <- rbind(symmetryCells, symmetryCells.verse)
+symmetryCells.unique <- symmetryCells.pairs[!duplicated(paste(symmetryCells.pairs$s1b,symmetryCells.pairs$s2b, ' ')),]
+dim(symmetryCells.unique)
+symmetryCells.keep1 <- symmetryCells.unique %>% filter(s1b < s2b)
+dim(symmetryCells.keep1)
+
+library(data.tree)
+ReadInputTree <- function(filename){
+  # read input complete tree to data.frame
+  return(read.table(filename,sep = '\t',header = TRUE, as.is = TRUE, colClasses = "character", quote = ''))
+}
+
+fname.referenceTree <- "/mnt/data/home/ATPs/W/Celegans/Lineages/fun.alm"
+referenceTree = ReadInputTree(fname.referenceTree)
+referenceTree$pathString <- lapply(referenceTree$Lineage,
+                                   function(b)paste0("Root",paste(substring(b,1,0:nchar(b)),collapse = "/")))
+
+dtTree <- as.Node(referenceTree)
+symmetryCells.keep1$s1l <- unlist(lapply(symmetryCells.keep1$s1b,function(x)FindNode(dtTree,name = x)$leafCount))
+symmetryCells.keep1$s2l <- unlist(lapply(symmetryCells.keep1$s2b,function(x)FindNode(dtTree,name = x)$leafCount))
+symmetryCells.keep1 <- symmetryCells.keep1[order(symmetryCells.keep1$s1l, decreasing = TRUE),]
+symmetryCells.keep1
+symUse <- symmetryCells.keep1 %>% filter(s1l >= 10)
+
+
+```
+
+
+```{r}
+
+alignments$Cor <- unlist(lapply(1:dim(alignments)[1], function(x)CalculateCorrelation(alignments[x,])))
+alignments <- alignments %>% dplyr::as.tbl()
+alignments$sym <- (alignments$RootS %in% symUse$s1b) & (alignments$RootT %in% symUse$s2b) 
+alignments$CorZ <- alignments$Cor * sqrt((unlist(alignments$MatchLength) - 3) / 1.06)
+alignments$Score <- alignments$Score %>% as.integer()
+  
+alignments$sister <- sapply(1:nrow(alignments),function(x){
+  
+  r <- alignments[x,]
+  RootS.p <- r$RootS %>% substr(.,start = 1,stop = (nchar(.)-1))
+  RootT.p <- r$RootT %>% substr(.,start = 1,stop = (nchar(.)-1))
+  ifelse(RootS.p==RootT.p,T,F)
+})
+
+alignments$NumTerNodes <- 
+  alignments$MatchS %>% 
+  sapply(.,function(x){unlist(x) %>% ggvita::Find.tips() %>%length()})
+
+# source("~/2017-2018/tree/transform ppp to 111/Bin_to_LN.R")
+# 
+# alignments$RootS_LN <- 
+#   alignments$RootS %>% 
+#   parallel::mclapply(.,Bin_to_LN,mc.cores = 10)
+# 
+# alignments$RootT_LN <- 
+#   alignments$RootT %>% 
+#   parallel::mclapply(.,Bin_to_LN,mc.cores = 10)
+
+
+
+
+```
+```{r}
+
+fun.alm <- 
+  data.table::fread("~/2017-2018/tree/C.elegans_VS_C.elegans/data/fun.alm",colClasses = "character")
+
+Find_Prune_Num <- function(x){
+  if(!is.na(x)){
+    x <- as.character(x)
+    startsWith(fun.alm$Lineage,x) %>% sum()
+  }else{0}
+  
+  
+}
+
+
+
+alignments$NumPruneS <- 
+  alignments$PruneS %>% 
+  parallel::mclapply(.,
+                     function(x)sapply(x,Find_Prune_Num) %>% sum(),
+                     mc.cores = 10)
+
+alignments$NumPruneT <- 
+  alignments$PruneT %>% 
+  parallel::mclapply(.,
+                     function(x)sapply(x,Find_Prune_Num) %>% sum(),
+                     mc.cores = 10)
+
+
+#fwrite(alignments,"~/2017-2018/tree/Fig.4B/alignments_20200515.csv",quote = T)
+
+```
+
+```{r eval=FALSE, include=FALSE}
+alignments.2 <- 
+  alignments %>%  
+  dplyr::filter(Score<250,Cor>0.4) %>% 
+  dplyr::filter(id<=2000)
+
+alignments.2 <- 
+  alignments %>%  
+  dplyr::filter(Score<250,Cor>0.4) %>% 
+  dplyr::filter(id<=2000,pvalue<0.05) %>% 
+  dplyr::filter(MatchLength>10)
+
+source("~/2017-2018/tree/transform ppp to 111/Bin_to_LN.R")
+
+
+alignments.2$RootS_LN <- 
+  alignments.2$RootS %>% 
+  parallel::mclapply(.,Bin_to_LN,mc.cores = 10)
+
+alignments.2$RootT_LN <- 
+  alignments.2$RootT %>% 
+  parallel::mclapply(.,Bin_to_LN,mc.cores = 10)
+
+fwrite(alignments.2,"~/2017-2018/tree/Fig.4B/alignments2_20200515.csv",quote = T)
+
+
+p1<-
+alignments.2 %>% 
+ggplot( aes(x = as.numeric(Score), y = CorZ)) + 
+  geom_point(aes(color=Cor,size=Cor),show.legend = F,alpha=1) + 
+  #geom_smooth(color="red",method = "lm", se = FALSE,size=.5,alpha=0.5,show.legend = F) +
+  theme_bw() + 
+  xlab("Score")+
+  ylab("z score")+
+  scale_color_gradientn(colors=RColorBrewer::brewer.pal(5,"Purples"),name="R")+
+  scale_radius()+
+  #scale_size(range = c(0,2.5),name = "R",trans = "sqrt")+
+  theme(panel.border = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(), 
+        axis.line = element_line(colour = "black"))
+#p1
+
+
+p2<-
+  alignments.2 %>% 
+ggplot( aes(x = -as.numeric(log10pvalue), y = CorZ)) + 
+  geom_point(aes(color=Cor,size=Cor),show.legend = T,alpha=1) + 
+  #geom_smooth(color="red",method = "lm", se = FALSE,size=.5,alpha=0.5,show.legend = F) +
+  theme_bw() + 
+  xlab("-log10(P)")+
+  ylab("z score")+
+  scale_color_gradientn(colors=RColorBrewer::brewer.pal(5,"Purples"),name="R")+
+  scale_radius()+
+  ggplot2::theme(
+        panel.border = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(), 
+        axis.line = element_line(colour = "black"),
+        legend.position="right")
+#p
+p2.legend <- cowplot::get_legend(p2)
+
+p2.2<-
+  alignments.2 %>% 
+ggplot( aes(x = -as.numeric(log10pvalue), y = CorZ)) + 
+  geom_point(aes(color=Cor,size=Cor),show.legend = T,alpha=1) + 
+  #geom_smooth(color="red",method = "lm", se = FALSE,size=.5,alpha=0.5,show.legend = F) +
+  theme_bw() + 
+  xlab("-log10(P)")+
+  ylab("z score")+
+  scale_color_gradientn(colors=RColorBrewer::brewer.pal(5,"Purples"),name="R")+
+  scale_radius()+
+  #scale_size(range = c(0,2.5),name =NULL,trans = "sqrt")+
+  ggplot2::theme(
+        panel.border = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(), 
+        axis.line = element_line(colour = "black"),
+        legend.position="none")
+
+
+
+#p2
+pp <- cowplot::plot_grid(p1,p2.2,p2.legend,nrow = 1,rel_widths = c(1,1,0.2),labels = c("A","B"))
+pp %>% print()
+#ggsave("./Fig4-20181128-max10000-test1000-same-m10u2pr1-zoom20181205.pdf",pp,units = "cm",height = 10,width = 15)
+```
+
+```{r}
+alignments.2 <- 
+  alignments %>%  
+  dplyr::filter(Cor>0.4) %>% 
+  dplyr::filter(id<=2000,pvalue<0.05)
+
+
+
+data.table::fwrite(alignments %>% data.frame(),file = "./alignments_2020.csv",quote =F,col.names = T)
+
+
+cor1.1 <- cor.test(x=as.numeric(alignments.2$Score),y=alignments.2$CorZ,method = "pearson")
+cor1.2 <- cor.test(x=as.numeric(alignments.2$Score),y=alignments.2$CorZ,method = "spearman",exact = T)
+cor2.1 <- cor.test(x=-as.numeric(alignments.2$log10pvalue),y=alignments.2$CorZ,method = "pearson")
+cor2.2 <- cor.test(x=-as.numeric(alignments.2$log10pvalue),y=alignments.2$CorZ,method = "spearman",exact = T)
+cor1.1$estimate
+cor1.2$estimate
+cor2.1$estimate
+cor2.2$estimate
+cor1.1$p.value
+cor1.2$p.value
+cor2.1$p.value
+cor2.2$p.value
+```
+
+
+```{r}
+
+point.alpha = 0.1
+point.shape= 16
+
+p1<-
+alignments.2 %>% 
+ggplot(aes(x = as.numeric(Score), y = CorZ)) + 
+  geom_point(aes(size=Cor),fill="black",show.legend = F,alpha=point.alpha,shape=point.shape)+
+  theme_bw() + 
+  xlab("DELTA score")+
+  ylab("Expression similarity(Fisher's r-to-z transformation)")+
+  scale_radius(range = c(0,4))+
+  #scale_size(range = c(0,2.5),name = "R",trans = "sqrt")+
+  theme(panel.border = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(), 
+        axis.line = element_line(colour = "black"))
+
+
+p2<-
+  alignments.2 %>% 
+ggplot( aes(x = -as.numeric(log10pvalue), y = CorZ)) + 
+  geom_point(aes(size=Cor),fill="black",show.legend = T,alpha=point.alpha,shape=point.shape ) +
+  #scale_color_gradientn(colors=RColorBrewer::brewer.pal(5,"Purples"),name="R")+
+  theme_bw() + 
+  xlab("-log10(P)")+
+  ylab("Expression similarity(Fisher's r-to-z transformation)")+
+  scale_radius(range = c(0,4))+
+  ggplot2::theme(
+        panel.border = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(), 
+        axis.line = element_line(colour = "black"),
+        legend.position="right")
+#p
+p2.legend <- cowplot::get_legend(p2)
+
+p2.2<-
+  alignments.2 %>% 
+ggplot( aes(x = -as.numeric(log10pvalue), y = CorZ)) + 
+  geom_point(aes(size=Cor),fill="black",show.legend = T,alpha=point.alpha,shape=point.shape ) + 
+  theme_bw() + 
+  xlab("-log10(P)")+
+  ylab("Expression similarity(Fisher's r-to-z transformation)")+
+  scale_radius(range = c(0,4))+
+  ggplot2::theme(
+        panel.border = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(), 
+        axis.line = element_line(colour = "black"),
+        legend.position="none")
+    
+
+#p2
+pp <- cowplot::plot_grid(p1,p2.2,p2.legend,nrow = 1,rel_widths = c(1,1,0.2),labels = c("A","B"))
+pp %>% print()
+ggsave("~/2017-2018/tree/C.elegans_VS_C.elegans/Fig4-20181128-max10000-test1000-same-m10u2pr1-zoom20181207-alpha.pdf",pp,units = "cm",height = 10,width = 15)
+```
+
+
+
+
+
+
+
+
+
+```{r eval=FALSE, include=FALSE}
+p3<-
+ alignments.2 %>% 
+  dplyr::mutate(alpha=ifelse(sym==T,1,1),color=ifelse(sym==T,"blue","red")) %>% 
+  dplyr::arrange(sym) %>% 
+ggplot( aes(x = as.numeric(Score), y = Cor)) + 
+  geom_point(color="black",show.legend = F,size=0.3,alpha=0.5) + 
+  #geom_smooth(color="red",method = "lm", se = FALSE,size=.5,alpha=0.5,show.legend = F) +
+  theme_bw() + 
+  xlab("Score")+
+  ylab("Pearson R")+
+  theme(legend.position="top",
+        panel.border = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(), 
+        axis.line = element_line(colour = "black"))
+
+
+
+p4<-
+  alignments.2 %>% 
+  dplyr::mutate(alpha=ifelse(sym==T,1,1),color=ifelse(sym==T,"blue","red")) %>% 
+  dplyr::arrange(sym) %>% 
+  ggplot( aes(x = -as.numeric(log10pvalue), y = Cor)) + 
+  geom_point(color="black",show.legend = F,size=0.3,alpha=0.5) + 
+  #geom_smooth(color="red",method = "lm", se = FALSE,size=.5,alpha=0.5,show.legend = F) +
+  theme_bw() + 
+  xlab("-log10(p-value)")+
+  ylab("Pearson R")+
+  theme(legend.position="top",
+        panel.border = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(), 
+        axis.line = element_line(colour = "black"))
+```
+
